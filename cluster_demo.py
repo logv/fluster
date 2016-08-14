@@ -2,6 +2,7 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 from sklearn import cluster, datasets
 from sklearn.neighbors import kneighbors_graph
@@ -13,11 +14,16 @@ np.random.seed(0)
 
 # Generate datasets. We choose the size big enough to see the scalability
 # of the algorithms, but not too big to avoid too long running times
-n_samples = 1500
+n_samples = 1200
+if len(sys.argv) > 1:
+    n_samples = int(sys.argv[1])
+
+print "N_SAMPLES", n_samples
 noisy_circles = datasets.make_circles(n_samples=n_samples, factor=.5,
                                       noise=.05)
 noisy_moons = datasets.make_moons(n_samples=n_samples, noise=.05)
 blobs = datasets.make_blobs(n_samples=n_samples, random_state=8)
+blobs4 = datasets.make_blobs(n_samples=n_samples, random_state=8, centers=5)
 no_structure = np.random.rand(n_samples, 2), None
 
 colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
@@ -34,7 +40,7 @@ plt.subplots_adjust(left=.02, right=.98, bottom=.001, top=.96, wspace=.05,
 
 plot_num = 1
 
-datasets = [noisy_circles, noisy_moons, blobs, no_structure]
+datasets = [noisy_circles, noisy_moons, blobs, no_structure, blobs4]
 for i_dataset, dataset in enumerate(datasets):
     X, y = dataset
     # normalize dataset for easier parameter selection
@@ -78,7 +84,7 @@ for i_dataset, dataset in enumerate(datasets):
             y_pred = algorithm.predict(X)
 
         # plot
-        plt.subplot(4, len(clustering_algorithms), plot_num)
+        plt.subplot(len(datasets), len(clustering_algorithms), plot_num)
         if i_dataset == 0:
             plt.title(name, size=18)
         plt.scatter(X[:, 0], X[:, 1], color=colors[y_pred].tolist(), s=10)
