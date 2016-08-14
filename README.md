@@ -13,9 +13,20 @@ iteration.
 
 # example results
 
-[imgur album](http://imgur.com/a/trDgo) of clustering results on variable
-number of points. notice that fluster algorithm is on the way right and is
-comparable to DBSCAN and Birch in results.
+* [results vs moderate DBSCAN (eps=0.3)](http://imgur.com/a/zxFzq)
+
+* [results vs aggressive DBSCAN (eps=0.5)](http://imgur.com/a/trDgo)
+
+the above results were created with [scikit's cluster demo
+script](http://scikit-learn.org/stable/auto_examples/cluster/plot_cluster_comparison.html)
+by varying the number of samples from 50 to 500 in increments of 10.
+
+the fluster algorithm is the right most column and is most comparable to
+[DBSCAN](https://en.wikipedia.org/wiki/DBSCAN) in idea and results. notice that
+DBSCAN has some difficulties at low N with moderate eps and difficulties at
+high N with aggressive eps. this indicates that DBSCAN's performance can be
+tuned by adjusting eps in relation to the number of points being clustered.
+
 
 # algorithm
 

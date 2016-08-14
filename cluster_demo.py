@@ -64,7 +64,7 @@ def test_n_samples(n_samples):
       two_means = cluster.MiniBatchKMeans(n_clusters=2)
       ward = cluster.AgglomerativeClustering(n_clusters=2, linkage='ward',
                                              connectivity=connectivity)
-      dbscan = cluster.DBSCAN(eps=.5)
+      dbscan = cluster.DBSCAN(eps=.33)
       affinity_propagation = cluster.AffinityPropagation(damping=.9,
                                                          preference=-200)
 
