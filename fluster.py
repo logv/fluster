@@ -6,7 +6,6 @@ import sys
 from collections import defaultdict
 import itertools
 
-
 class Fluster(object):
   def __init__(self, *args, **kwargs):
     self.__buckets = 0
@@ -97,14 +96,18 @@ class Fluster(object):
 
       density_map[tuple(pt_bucket)] += 1
 
+
+    self.__populated = density_map.keys()
     return seperate, density_map
 
   # joins nearby cells in the density map
   def join_clusters(self, min_overlap, min_distance):
     dims = self.__dims
     clusters = self.__clusters
+    cluster_sizes = self.__cluster_sizes
     density_map = self.__density_map
-    populated = density_map.keys()
+    populated = self.__populated
+    density_map.keys()
 
     neighbors = []
     kernel_size = int(min_distance)
@@ -135,16 +138,22 @@ class Fluster(object):
 
         tuple_2 = tuple(tuple_template)
 
+        if not tuple_1 in density_map:
+          continue
+
+        if not tuple_2 in density_map:
+          continue
+
         d1 = density_map[tuple_1]
         d2 = density_map[tuple_2]
 
         if distance > min_distance:
           continue
 
-        if d1 == 0 or d2 == 0:
+        if d1 == 0 or d2 == 0 or d1 + d2 < 2:
           continue
 
-        density_distance = abs(d1 - d2)  /  float(d1  +  d2)
+        density_distance = abs(d1 - d2) /  (float(d1  +  d2)+1)
         if density_distance > min_overlap:
           continue
 
@@ -160,8 +169,23 @@ class Fluster(object):
         if c1 == c2:
           continue
 
-        joined += 1
+
+        if not c1 in cluster_sizes:
+          cluster_sizes[c1] = 1
+        if not c2 in cluster_sizes:
+          cluster_sizes[c2] = 1
+
+        s1 = cluster_sizes[c1]
+        s2 = cluster_sizes[c2]
+
+        cluster_sizes[c1] += s2
+        cluster_sizes[c2] += s1
+
+        density_map[tuple_1] = (d1 + d2) / 2.0
+        density_map[tuple_2] = (d1 + d2) / 2.0
+
         clusters[c1] = c2
+        joined += 1
 
     return joined
 
@@ -183,7 +207,7 @@ class Fluster(object):
       # estimate the number of buckets based on our extrema and points
       # our travel distance should be related to number of buckets and squares
       # we have
-      self.__buckets = min(max(int(math.log(len(pts), 2)*5), 27), 53)
+      self.__buckets = min(max(int(math.log(len(pts), 2)*5), 25), 56)
 
     print "BUCKETS", self.__buckets, "FOR", len(pts), "POINTS"
     # every pt is a K tuple of size dims
@@ -202,29 +226,39 @@ class Fluster(object):
 
     self.__ranges = ranges
     self.__clusters = {}
+    self.__cluster_sizes = {}
     self.build_density_map(pts)
 
 
     import time
     total_ms = 0
     distance = 6.28 - math.log(len(pts)) / 3.14
-    distance -= 1
+    distance -= 2
+    distance = max(distance, 2)
+    missed = 0
 
     # get aggressive with overlaps
-    overlap = min(max((distance - 3.14) / 3.14, 0.4), 0.6)
-    max_size = 8 - int(self.__buckets / 10)
+    overlap = min(max((distance - 3.14) / 3.14, 0.5), 0.75)
+    overlap_delta = (1 / 2.0) / 10.0
+    distance_delta = 1.0 / 2.0
     for i in xrange(15):
-      print "MIN DISTANCE", distance, "KERNEL SIZE", int(distance), "OVERLAP", overlap
+      print "DISTANCE", distance, "KERNEL SIZE", int(distance), "OVERLAP", overlap
 
       start = time.time()
-      joined = self.join_clusters(overlap, min(distance, max_size))
-      overlap -= 0.033
-      distance += 0.53
+      joined = self.join_clusters(overlap, distance)
+      overlap -= overlap_delta
+      distance += distance_delta
       end = time.time()
       time_taken = ((end - start) * 1000)
       total_ms += time_taken
       print   "  JOINED CLUSTERS",   joined,   "TOOK",   "%ims"   %   time_taken
-      if joined <= 5:
+      loglen = math.log(len(pts))
+      if joined <= 2 * loglen:
+        missed += 1
+      elif joined >= 5 * loglen and missed > 0:
+        missed -= 1
+
+      if missed >= 2:
         break
 
 
@@ -232,15 +266,17 @@ class Fluster(object):
 
   def predict(self, pts):
     clusters = self.__clusters
+    cluster_sizes = self.__cluster_sizes
     colors = self.label_clusters()
     extrema = self.__extrema
+    MIN_REGION=int(math.log(len(pts)))
 
     pt_colors = []
     for pt in pts:
       pt_bucket = self.get_dim_bucket(pt, self.__buckets)
       if pt_bucket in clusters:
         cluster = self.get_cluster_leader(clusters, pt_bucket)
-        if cluster  in  colors:
+        if cluster  in  colors and cluster_sizes[cluster] >= MIN_REGION:
           pt_colors.append(colors[cluster])
         else:
           pt_colors.append(-1)
