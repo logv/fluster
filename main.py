@@ -17,7 +17,10 @@ def fluster(pts):
     dims = len(pts[0])
     if SHOW:
       cm = plt.cm.get_cmap('brg')
-      sc = plt.scatter(seperate[0], seperate[1], c=pt_colors, s=counts, cmap=cm, marker="s")
+      plt.hexbin(seperate[0], seperate[1], gridsize=f.buckets(), mincnt=1, alpha=0.3)
+      colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
+      colors = np.hstack([colors] * 20)
+      sc = plt.scatter(seperate[0], seperate[1], c=colors[pt_colors].tolist(), s=counts, cmap=cm, marker="s")
       plt.axis(f.get_axes())
       plt.show()
 
@@ -58,14 +61,21 @@ if __name__ == "__main__":
 
   # Generate datasets.  We choose the size big enough  to  see  the  scalability
   # of the algorithms,  but  not  too  big  to  avoid  too  long  running  times
-  n_samples = 200
+  n_samples = 150
+  import sys
+  if len(sys.argv) > 1:
+    n_samples = int(sys.argv[1])
+
   noisy_circles   =    datasets.make_circles(n_samples=n_samples,    factor=0.5,
+                                        noise=.05)
+  noisy_circles2   =    datasets.make_circles(n_samples=n_samples,    factor=0.7,
                                         noise=.05)
   noisy_moons = datasets.make_moons(n_samples=n_samples, noise=.05)
   blobs = datasets.make_blobs(n_samples=n_samples, random_state=8)
   no_structure = np.random.rand(n_samples, 2), None
 
   fluster(noisy_circles[0])
+  fluster(noisy_circles2[0])
   fluster(noisy_moons[0])
   fluster(blobs[0])
   fluster(no_structure[0])

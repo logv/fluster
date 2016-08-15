@@ -24,11 +24,15 @@ import fluster
 
 def test_n_samples(n_samples):
   print "N_SAMPLES", n_samples
-  noisy_circles = datasets.make_circles(n_samples=n_samples, factor=.5,
+  noisy_circles = datasets.make_circles(n_samples=n_samples, factor=.7,
+                                        noise=.05)
+  noisy_circles2 = datasets.make_circles(n_samples=n_samples, factor=.6,
+                                        noise=.05)
+  noisy_circles3 = datasets.make_circles(n_samples=n_samples, factor=.5,
                                         noise=.05)
   noisy_moons = datasets.make_moons(n_samples=n_samples, noise=.05)
-  blobs = datasets.make_blobs(n_samples=n_samples, random_state=8)
-  blobs4 = datasets.make_blobs(n_samples=n_samples, random_state=8, centers=5)
+  blobs = datasets.make_blobs(n_samples=n_samples, random_state=3)
+  blobs4 = datasets.make_blobs(n_samples=n_samples, random_state=22, centers=5)
   no_structure = np.random.rand(n_samples, 2), None
 
   colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
@@ -45,7 +49,7 @@ def test_n_samples(n_samples):
 
   plot_num = 1
 
-  testsets = [noisy_circles, noisy_moons, blobs, no_structure, blobs4]
+  testsets = [noisy_circles, noisy_circles3, noisy_moons, no_structure, blobs, blobs4]
   for i_dataset, dataset in enumerate(testsets):
       X, y = dataset
       # normalize dataset for easier parameter selection

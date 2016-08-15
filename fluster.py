@@ -39,6 +39,10 @@ class Fluster(object):
   # amortized leader labelings
   # for union joins
   def get_cluster_leader(self, clusters, tup):
+    if not tup in clusters:
+      clusters[tup] = tup
+      self.__cluster_sizes[tup] = 1
+
     prev_tup = tup
     path = []
     while tup in clusters:
@@ -96,9 +100,21 @@ class Fluster(object):
 
       density_map[tuple(pt_bucket)] += 1
 
-
     self.__populated = density_map.keys()
     return seperate, density_map
+
+  def get_neighbor_map(self, dims, dist):
+    neighbors = []
+    for k in xrange(dims):
+      neighbor = [0]
+      for d in xrange(dist+1):
+        neighbor += [- d, +d]
+
+      neighbors.append(neighbor)
+
+    NEIGHBORS = list(itertools.product(*neighbors))
+    return NEIGHBORS
+
 
   # joins nearby cells in the density map
   def join_clusters(self, min_overlap, min_distance):
@@ -109,23 +125,27 @@ class Fluster(object):
     populated = self.__populated
     density_map.keys()
 
-    neighbors = []
     kernel_size = int(min_distance)
-
     dist=kernel_size
-    for k in xrange(dims):
-      neighbor = [0]
-      for d in xrange(dist):
-        neighbor += [- d, +d]
 
-      neighbors.append(neighbor)
-
-      NEIGHBORS = list(itertools.product(*neighbors))
-
+    NEIGHBORS = self.get_neighbor_map(dims, dist)
     joined = 0
 
     tuple_template = [0] * dims
-    for i, tuple_1 in enumerate(populated):
+
+    import copy
+    populated = copy.copy(populated)
+    populated.sort(key=lambda c: density_map[c], reverse=True)
+    visited = {}
+    while populated:
+      tuple_1 = populated.pop()
+      if tuple_1 in visited:
+        continue
+      visited[tuple_1] = True
+
+      if not tuple_1 in density_map:
+        continue
+
       for offset_tuple in NEIGHBORS:
         if sum(offset_tuple) == 0:
           continue
@@ -135,33 +155,23 @@ class Fluster(object):
           tuple_template[k] = tuple_1[k] + offset_tuple[k]
           distance += offset_tuple[k]**2
         distance = math.sqrt(distance)
-
         tuple_2 = tuple(tuple_template)
 
-        if not tuple_1 in density_map:
+        if not tuple_2 in density_map:
           continue
 
-        if not tuple_2 in density_map:
+        if distance > min_distance:
           continue
 
         d1 = density_map[tuple_1]
         d2 = density_map[tuple_2]
 
-        if distance > min_distance:
-          continue
-
         if d1 == 0 or d2 == 0 or d1 + d2 < 2:
           continue
 
-        density_distance = abs(d1 - d2) /  (float(d1  +  d2)+1)
+        density_distance = abs(d1 - d2) /  (float(d1  +  d2))
         if density_distance > min_overlap:
           continue
-
-        if not tuple_1 in clusters:
-          clusters[tuple_1] = tuple_1
-
-        if not tuple_2 in clusters:
-          clusters[tuple_2] = tuple_2
 
         c1 = self.get_cluster_leader(clusters, tuple_1)
         c2 = self.get_cluster_leader(clusters, tuple_2)
@@ -169,11 +179,8 @@ class Fluster(object):
         if c1 == c2:
           continue
 
-
-        if not c1 in cluster_sizes:
-          cluster_sizes[c1] = 1
-        if not c2 in cluster_sizes:
-          cluster_sizes[c2] = 1
+        density_map[tuple_1] = (d1 + d2) / 2.0
+        density_map[tuple_2] = (d1 + d2) / 2.0
 
         s1 = cluster_sizes[c1]
         s2 = cluster_sizes[c2]
@@ -181,11 +188,12 @@ class Fluster(object):
         cluster_sizes[c1] += s2
         cluster_sizes[c2] += s1
 
-        density_map[tuple_1] = (d1 + d2) / 2.0
-        density_map[tuple_2] = (d1 + d2) / 2.0
-
         clusters[c1] = c2
         joined += 1
+
+        # low chance of exploring the neighborhood
+        if random.random() * min_distance < 1:
+          populated.append(tuple_2)
 
     return joined
 
@@ -202,12 +210,18 @@ class Fluster(object):
 
     return colors
 
+  def density_map(self):
+    return self.__density_map
+
+  def buckets(self):
+    return self.__buckets
+
   def fit(self, pts):
     if self.__buckets == 0:
       # estimate the number of buckets based on our extrema and points
       # our travel distance should be related to number of buckets and squares
       # we have
-      self.__buckets = min(max(int(math.log(len(pts), 2)*5), 25), 56)
+      self.__buckets = min(max(int(math.log(len(pts), 2)*4.5), 21), 67)
 
     print "BUCKETS", self.__buckets, "FOR", len(pts), "POINTS"
     # every pt is a K tuple of size dims
@@ -232,33 +246,33 @@ class Fluster(object):
 
     import time
     total_ms = 0
-    distance = 6.28 - math.log(len(pts)) / 3.14
-    distance -= 2
-    distance = max(distance, 2)
+    distance = 1.77
     missed = 0
+    total_joins = 0
 
     # get aggressive with overlaps
-    overlap = min(max((distance - 3.14) / 3.14, 0.5), 0.75)
-    overlap_delta = (1 / 2.0) / 10.0
-    distance_delta = 1.0 / 2.0
+    overlap = 0.90
+    step_distance = 0.34
+    overlap_factor = 1 - step_distance
     for i in xrange(15):
       print "DISTANCE", distance, "KERNEL SIZE", int(distance), "OVERLAP", overlap
 
       start = time.time()
       joined = self.join_clusters(overlap, distance)
-      overlap -= overlap_delta
-      distance += distance_delta
+      overlap *= overlap_factor
+      distance += step_distance
       end = time.time()
       time_taken = ((end - start) * 1000)
       total_ms += time_taken
       print   "  JOINED CLUSTERS",   joined,   "TOOK",   "%ims"   %   time_taken
       loglen = math.log(len(pts))
-      if joined <= 2 * loglen:
+      if joined <= 2*loglen and total_joins > 0:
         missed += 1
-      elif joined >= 5 * loglen and missed > 0:
+      elif joined >= 2*loglen and missed > 0:
         missed -= 1
 
-      if missed >= 2:
+      total_joins += joined
+      if missed >= 3:
         break
 
 
@@ -276,7 +290,7 @@ class Fluster(object):
       pt_bucket = self.get_dim_bucket(pt, self.__buckets)
       if pt_bucket in clusters:
         cluster = self.get_cluster_leader(clusters, pt_bucket)
-        if cluster  in  colors and cluster_sizes[cluster] >= MIN_REGION:
+        if cluster in colors and cluster_sizes[cluster] > MIN_REGION:
           pt_colors.append(colors[cluster])
         else:
           pt_colors.append(-1)
